@@ -1,0 +1,27 @@
+version: "1.0"
+beancount:
+  operating_currency:
+    - CNY
+    - USD
+default_accounts:
+  assets:
+    bank: "Assets:Bank"
+    cash: "Assets:Cash"
+    receivable: "Assets:Receivable"
+    inventory: "Assets:Inventory"
+  liabilities:
+    payable: "Liabilities:Payable"
+    loans: "Liabilities:Loans"
+    tax_payable: "Liabilities:Tax-Payable"
+  equity:
+    capital: "Equity:Capital"
+    retained: "Equity:Retained-Earnings"
+    dividend: "Equity:Distributions"
+  income:
+    sales: "Income:Sales"
+    service: "Income:Service"
+  expenses:
+    cost: "Expenses:Cost"
+    tax: "Expenses:Tax"
+    office: "Expenses:Office"
+    salary: "Expenses:Salary"

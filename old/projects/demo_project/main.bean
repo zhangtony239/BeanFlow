@@ -1,0 +1,48 @@
+; demo_project - BeanFlow Project
+; Generated: 2026-05-08
+; UID: a08b39be
+
+commodity CNY
+  name: "CNY"
+commodity USD
+  name: "USD"
+
+; 账户声明
+
+2010-01-01 Assets:Bank:demo_project CNY
+2010-01-01 Assets:Cash:demo_project CNY
+2010-01-01 Assets:Inventory:demo_project CNY
+2010-01-01 Assets:Receivable:demo_project CNY
+2010-01-01 Equity:Capital:demo_project CNY
+2010-01-01 Equity:Retained-Earnings:demo_project CNY
+2010-01-01 Expenses:Cost:demo_project CNY
+2010-01-01 Expenses:Office:demo_project CNY
+2010-01-01 Expenses:Salary:demo_project CNY
+2010-01-01 Expenses:Tax:demo_project CNY
+2010-01-01 Income:Sales:demo_project CNY
+2010-01-01 Income:Service:demo_project CNY
+2010-01-01 Liabilities:Loans:demo_project CNY
+2010-01-01 Liabilities:Payable:demo_project CNY
+2010-01-01 Liabilities:Tax-Payable:demo_project CNY
+
+; 交易记录
+
+2026-05-08 * "借款融资 - 中国银行"
+  Assets:Bank:demo_project 1,000,000.00 CNY
+  Liabilities:Loans:demo_project 1,000,000.00 CNY
+2026-05-08 * "采购 - 供应商B"
+  Expenses:Cost:demo_project 10,000.00 CNY
+  Assets:Tax-Input:demo_project 1,300.00 CNY
+  Assets:Bank:demo_project 11,300.00 CNY
+2026-05-08 * "商品销售 - 客户C"
+  Assets:Bank:demo_project 56,500.00 CNY
+  Income:Sales:demo_project 50,000.00 CNY
+  Liabilities:Tax-Output:demo_project 6,500.00 CNY
+2026-05-08 * "计提税费 - income"
+  Expenses:Income-Tax:demo_project 100,000.00 CNY
+  Liabilities:Income-Tax-Payable:demo_project 100,000.00 CNY
+2026-05-08 * "宣告分红 - 股东A"
+  Equity:Retained-Earnings:demo_project 50,000.00 CNY
+  Liabilities:Dividend-Payable:demo_project 50,000.00 CNY
+
+; End of Ledger

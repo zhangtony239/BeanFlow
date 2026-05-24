@@ -1,0 +1,34 @@
+; sample - BeanFlow Project
+; Generated: 2026-05-08
+; UID: f17cf134
+
+commodity CNY
+  name: "CNY"
+commodity USD
+  name: "USD"
+
+; 账户声明
+
+2010-01-01 Assets:Bank:sample CNY
+2010-01-01 Assets:Cash:sample CNY
+2010-01-01 Assets:Inventory:sample CNY
+2010-01-01 Assets:Receivable:sample CNY
+2010-01-01 Equity:Capital:sample CNY
+2010-01-01 Equity:Retained-Earnings:sample CNY
+2010-01-01 Expenses:Cost:sample CNY
+2010-01-01 Expenses:Office:sample CNY
+2010-01-01 Expenses:Salary:sample CNY
+2010-01-01 Expenses:Tax:sample CNY
+2010-01-01 Income:Sales:sample CNY
+2010-01-01 Income:Service:sample CNY
+2010-01-01 Liabilities:Loans:sample CNY
+2010-01-01 Liabilities:Payable:sample CNY
+2010-01-01 Liabilities:Tax-Payable:sample CNY
+
+; 交易记录
+
+2026-05-08 * "计提税费 - income"
+  Expenses:Income-Tax:sample 100,000.00 CNY
+  Liabilities:Income-Tax-Payable:sample 100,000.00 CNY
+
+; End of Ledger
