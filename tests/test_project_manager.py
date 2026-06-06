@@ -35,3 +35,31 @@ def test_create_project_requires_root(tmp_path):
     assert sub_proj.parent == "root"
 
     mgr.stop()
+
+
+def test_delete_project_with_readonly_files(tmp_path):
+    """测试删除包含只读文件的项目，验证不会因权限问题报错。"""
+    import os
+    import stat
+
+    workspace = tmp_path
+    mgr = ProjectManager(workspace)
+    mgr.start()
+
+    # 创建 root 项目
+    mgr.create_project("root")
+    # 创建子项目
+    proj = mgr.create_project("my_project")
+
+    # 在项目目录下创建一个只读文件
+    readonly_file = Path(proj.path) / "readonly.txt"
+    readonly_file.write_text("test", encoding="utf-8")
+    # 设置为只读属性
+    os.chmod(readonly_file, stat.S_IREAD)
+
+    # 验证删除项目成功
+    assert mgr.delete_project("my_project") is True
+    assert not readonly_file.exists()
+    assert not Path(proj.path).exists()
+
+    mgr.stop()

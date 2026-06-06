@@ -186,7 +186,13 @@ class ProjectManager:
         if not proj_path.exists():
             return False
         import shutil
-        shutil.rmtree(proj_path)
+        import stat
+
+        def remove_readonly(func, path, excinfo):
+            os.chmod(path, stat.S_IWRITE)
+            func(path)
+
+        shutil.rmtree(proj_path, onerror=remove_readonly)
         with self._lock:
             self._projects.pop(name, None)
         return True
