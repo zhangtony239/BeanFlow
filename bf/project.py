@@ -90,7 +90,11 @@ class Project:
             if candidate.exists():
                 return load_mapping_dictionary(candidate)
             current = current.parent
-        return MappingDictionary()
+        return MappingDictionary(reserved_embedding_model=None)
+
+    def close(self) -> None:
+        """关闭项目，释放资源。"""
+        self.engine.close()
 
     # ── 子项目操作 ───────────────────────────────────
 
@@ -229,6 +233,13 @@ class AutoProject(Project):
                     parts = line.split()
                     for i, p in enumerate(parts):
                         if p.replace(".", "").replace("-", "").isdigit():
+                            try:
+                                val = Decimal(p)
+                                balances[temp_id] += val
+                            except Exception:
+                                pass
+                            break
+                        elif p.startswith("-") and p[1:].replace(".", "").isdigit():
                             try:
                                 val = Decimal(p)
                                 balances[temp_id] += val

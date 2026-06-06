@@ -91,6 +91,20 @@ class ProjectManager:
         """更新最后活动时间。"""
         self._last_activity = time.time()
 
+    # ── 辅助方法 ────────────────────────────────────
+
+    def find_project_path(self, name: str) -> Optional[Path]:
+        """在 workspace_root 下递归寻找项目目录。"""
+        if name == "root":
+            root_path = self.workspace_root / "root"
+            return root_path if root_path.exists() else None
+
+        # 递归寻找包含 env.yaml 且目录名为 name 的目录
+        for env_file in self.workspace_root.rglob("env.yaml"):
+            if env_file.parent.name == name:
+                return env_file.parent
+        return None
+
     # ── 项目操作 ────────────────────────────────────
 
     def get_project(self, name: str, base_path: Optional[Path] = None) -> Project:
@@ -98,16 +112,21 @@ class ProjectManager:
 
         Args:
             name: 项目名称
-            base_path: 基础路径（默认为 workspace_root）
+            base_path: 基础路径（若提供则直接拼接，否则递归寻找）
         """
         self._touch()
         with self._lock:
             if name in self._projects:
                 return self._projects[name]
-            base = base_path or self.workspace_root
-            proj_path = base / name
-            if not proj_path.exists():
-                raise FileNotFoundError(f"项目不存在: {proj_path}")
+            
+            if base_path:
+                proj_path = Path(base_path) / name
+            else:
+                proj_path = self.find_project_path(name)
+
+            if not proj_path or not proj_path.exists():
+                raise FileNotFoundError(f"项目不存在: {name}")
+
             proj = create_project(proj_path, mapping=self.mapping)
             self._projects[name] = proj
             return proj
@@ -118,20 +137,33 @@ class ProjectManager:
         Args:
             name: 项目名称
             parent: 父项目名称
-            base_path: 基础路径（默认为 workspace_root）
+            base_path: 基础路径（若提供则直接拼接，否则根据 parent 递归寻找）
         """
         self._touch()
-        base = base_path or self.workspace_root
 
         # 1. 强制校验 root 项目的存在性
         if name != "root":
-            root_path = base / "root"
+            root_path = self.workspace_root / "root"
             if not root_path.exists():
                 raise ValueError("创建任何业务项目前，必须先创建并初始化 'root' 项目（总会计主体）！")
-            # 强制将 parent 设为 "root"
-            parent = "root"
+            # 如果未指定 parent，默认设为 "root"
+            if not parent:
+                parent = "root"
 
-        proj_path = base / name
+        # 确定项目路径
+        if name == "root":
+            proj_path = self.workspace_root / "root"
+        else:
+            if base_path:
+                proj_path = Path(base_path) / name
+            else:
+                if not parent:
+                    raise ValueError("非 root 项目必须指定父项目")
+                parent_path = self.find_project_path(parent)
+                if not parent_path:
+                    raise ValueError(f"父项目不存在: {parent}")
+                proj_path = parent_path / name
+
         if proj_path.exists():
             raise FileExistsError(f"项目已存在: {proj_path}")
 
@@ -172,19 +204,32 @@ class ProjectManager:
         """列出所有项目。"""
         self._touch()
         projects = []
-        for item in self.workspace_root.iterdir():
-            if item.is_dir() and (item / "env.yaml").exists():
-                # 跳过阶段子项目
-                if not item.name.startswith("phase_"):
-                    projects.append(item.name)
-        return sorted(projects)
+        # 递归寻找所有包含 env.yaml 的目录
+        for env_file in self.workspace_root.rglob("env.yaml"):
+            proj_dir = env_file.parent
+            # 跳过阶段子项目
+            if not proj_dir.name.startswith("phase_"):
+                projects.append(proj_dir.name)
+        return sorted(list(set(projects)))
 
     def delete_project(self, name: str) -> bool:
         """删除项目。"""
         self._touch()
-        proj_path = self.workspace_root / name
-        if not proj_path.exists():
+        proj_path = self.find_project_path(name)
+        if not proj_path or not proj_path.exists():
             return False
+
+        # 1. 递归关闭缓存中所有属于该项目路径下的项目的 Git 仓库，并从缓存中移除
+        with self._lock:
+            to_remove = []
+            for pname, p in self._projects.items():
+                if p.path == proj_path or proj_path in p.path.parents:
+                    p.close()
+                    to_remove.append(pname)
+            for pname in to_remove:
+                self._projects.pop(pname, None)
+
+        # 2. 删除物理目录
         import shutil
         import stat
 
@@ -193,8 +238,6 @@ class ProjectManager:
             func(path)
 
         shutil.rmtree(proj_path, onerror=remove_readonly)
-        with self._lock:
-            self._projects.pop(name, None)
         return True
 
     def invalidate_cache(self, name: Optional[str] = None) -> None:

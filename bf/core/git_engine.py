@@ -11,12 +11,16 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import git
 
 try:
-    import git
+    import git as _git
     HAS_GITPYTHON = True
 except ImportError:
+    _git = None  # type: ignore
     HAS_GITPYTHON = False
 
 
@@ -25,36 +29,58 @@ class GitEngine:
 
     def __init__(self, repo_path: Path) -> None:
         self.repo_path = Path(repo_path).resolve()
-        self._repo: Optional["git.Repo"] = None
+        self._repo: Optional[git.Repo] = None
+
+    def close(self) -> None:
+        """关闭 Git 仓库，释放文件句柄。"""
+        if self._repo is not None:
+            self._repo.close()
+            self._repo = None
 
     # ── 仓库生命周期 ─────────────────────────────────
 
     def init(self, initial_message: str = "init: 初始化项目仓库") -> "GitEngine":
         """初始化 Git 仓库并执行首次 commit。"""
-        if not HAS_GITPYTHON:
+        if not HAS_GITPYTHON or _git is None:
             raise RuntimeError("需要安装 GitPython: pip install gitpython")
         self.repo_path.mkdir(parents=True, exist_ok=True)
-        self._repo = git.Repo.init(self.repo_path)
+        self._repo = _git.Repo.init(self.repo_path)
         # 首次 commit — 空仓库直接提交
         self._first_commit(initial_message)
         return self
 
     def open(self) -> "GitEngine":
         """打开已有仓库。"""
-        if not HAS_GITPYTHON:
+        if not HAS_GITPYTHON or _git is None:
             raise RuntimeError("需要安装 GitPython: pip install gitpython")
-        self._repo = git.Repo(self.repo_path)
+        self._repo = _git.Repo(self.repo_path)
         return self
 
     @property
-    def repo(self) -> "git.Repo":
+    def repo(self) -> git.Repo:
         if self._repo is None:
             self.open()
+        assert self._repo is not None
         return self._repo
 
     @property
     def is_initialized(self) -> bool:
         return (self.repo_path / ".git").exists()
+
+    # ── 辅助方法 ────────────────────────────────────
+
+    def _get_actor(self, author: Optional[str]) -> git.Actor:
+        """将字符串格式的作者转换为 git.Actor 对象。"""
+        if not HAS_GITPYTHON or _git is None:
+            raise RuntimeError("需要安装 GitPython: pip install gitpython")
+        if author:
+            if "<" in author and ">" in author:
+                name, email = author.split("<", 1)
+                name = name.strip()
+                email = email.rstrip(">").strip()
+                return _git.Actor(name, email)
+            return _git.Actor(author, "bf@localhost")
+        return _git.Actor("BeanFlow", "bf@localhost")
 
     # ── 提交操作 ─────────────────────────────────────
 
@@ -62,7 +88,8 @@ class GitEngine:
         """首次提交（空仓库，无 HEAD）。"""
         repo = self.repo
         repo.git.add(A=True)
-        commit = repo.index.commit(message, author=git.Actor("BeanFlow", "bf@localhost"))
+        actor = self._get_actor(None)
+        commit = repo.index.commit(message, author=actor)
         return commit.hexsha
 
     def commit_all(self, message: str, author: Optional[str] = None) -> str:
@@ -70,15 +97,13 @@ class GitEngine:
         repo = self.repo
         # 添加所有文件
         repo.git.add(A=True)
+        actor = self._get_actor(author)
         # 检查是否有变更
         try:
-            if not repo.index.diff("HEAD"):
-                commit = repo.index.commit(message, author=author or git.Actor("BeanFlow", "bf@localhost"))
-            else:
-                commit = repo.index.commit(message, author=author or git.Actor("BeanFlow", "bf@localhost"))
+            commit = repo.index.commit(message, author=actor)
         except Exception:
             # 空仓库或无效 HEAD，直接提交
-            commit = repo.index.commit(message, author=author or git.Actor("BeanFlow", "bf@localhost"))
+            commit = repo.index.commit(message, author=actor)
         return commit.hexsha
 
     def commit_file(self, file_path: Path, message: str, author: Optional[str] = None) -> str:
@@ -87,12 +112,12 @@ class GitEngine:
         rel = file_path.relative_to(self.repo_path) if file_path.is_absolute() else file_path
         repo.git.add(str(rel))
         diff = repo.index.diff("HEAD", paths=[str(rel)])
+        actor = self._get_actor(author)
         if not diff:
             # 尝试空提交
-            commit = repo.index.commit(message, author=author or git.Actor("BeanFlow", "bf@localhost"),
-                                       skip_hooks=True)
+            commit = repo.index.commit(message, author=actor, skip_hooks=True)
         else:
-            commit = repo.index.commit(message, author=author or git.Actor("BeanFlow", "bf@localhost"))
+            commit = repo.index.commit(message, author=actor)
         return commit.hexsha
 
     # ── 合并操作 ─────────────────────────────────────
@@ -127,7 +152,6 @@ class GitEngine:
     def create_branch(self, name: str) -> str:
         """创建并切换到新分支。"""
         repo = self.repo
-        current = repo.active_branch
         new_branch = repo.create_head(name)
         new_branch.checkout()
         return name

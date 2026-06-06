@@ -16,27 +16,23 @@ BeanFlow 是一个基于 Beancount 的上游封装库，旨在通过 Git 版本�
 
 ```text
 / (Workspace Root)
-├── Project_root/                        # 企业全局环境 (Root Project)
-│   ├── .git/                            # 全局归档总账流水历史
-│   ├── config.yaml                      # 全局主配置文件
-│   ├── audit.yaml                       # 审计与权限控制配置
-│   ├── mapping_dictionary.yaml          # 全局会计科目与别名映射字典
-│   └── .bean_cache/                     # Hash缓存与性能索引
-│
-└── 📁 Project_A/                        # 具体业务实体 (独立项目, 通过 bf init --under root 创建)
-    ├── .git/                            # 项目 A 的独立凭证历史
-    ├── env.yaml                         # 继承并覆盖 Root 的配置
-    ├── Project_A_main.bean              # 主账本文件 (持久化账户)
-    ├── .bf_todo.yaml                    # 待办/异常阻断缓存
+└── 📁 root/                             # 企业全局环境 (Root Project)
+    ├── .git/                            # 全局归档总账流水历史
+    ├── audit.yaml                       # 审计与权限控制配置
+    ├── mapping_dictionary.yaml          # 全局会计科目与别名映射字典
+    ├── root_main.bean                   # 根项目主账本
     │
-    │   # === AutoProject (系统自动托管的生命周期状态子项目) ===
-    ├── 📁 phase_1_fundraising/          # 筹资阶段
-    │   ├── env.yaml
-    │   ├── temp_fundraising.bean        # 该阶段产生的临时分录
-    │   └── .bf_todo.yaml                # 阶段内待办
-    │
-    └── 📁 phase_2_procurement/          # 采购阶段 (筹资阶段结项并 merge 后自动生成)
-        └── ...
+    └── 📁 Project_A/                    # 具体业务实体 (通过 bf init --under root 创建)
+        ├── .git/                        # 项目 A 的独立凭证历史
+        ├── env.yaml                     # 继承并覆盖 Root 的配置
+        ├── Project_A_main.bean          # 主账本文件 (持久化账户)
+        ├── .bf_todo.yaml                # 待办/异常阻断缓存
+        │
+        │   # === AutoProject (系统自动托管的生命周期状态子项目) ===
+        └── 📁 phase_1_fundraising/      # 筹资阶段 (直接在项目内创建)
+            ├── env.yaml
+            ├── temp_fundraising.bean    # 该阶段产生的临时分录
+            └── .bf_todo.yaml            # 阶段内待办
 ```
 
 ---
@@ -223,7 +219,7 @@ Project (手动初始化的全局或实体项目节点)
 ### 8.2 报表导出 Provider-Exporter 模式
 - **重构模块**: [`bf/core/exporter.py`](bf/core/exporter.py)
 - **演进逻辑**: 引入了极具扩展性的 **Provider-Exporter 模式**，将报表数据的组织逻辑与渲染格式完全解耦：
-  - **`ReportData`**: 统一的报表数据模型，包含标题、表头、行数据和元数据。
+  - **`ReportData`**: 统一的报表数据模型，包含标题、表头、行数据 and 元数据。
   - **`BaseReportProvider`**: 报表数据源抽象基类，派生出 `EnterpriseReportProvider`（企业标准报表）、`CashFlowReportProvider`（现金流量表）和 `TaxReportProvider`（财税报表）。
   - **`BaseExporter`**: 报表导出器抽象基类，派生出 `PDFExporter`（使用 ReportLab 渲染为 PDF）和 `ExcelExporter`（使用 openpyxl 写入 Excel）。
 
@@ -236,3 +232,10 @@ Project (手动初始化的全局或实体项目节点)
 ### 8.4 CLI 导出命令增强
 - **重构模块**: [`bf/cli.py`](bf/cli.py)
 - **演进逻辑**: 重构了 `/bf export` 命令，增加了 `--type` / `-t`（支持 `enterprise`, `cashflow`, `tax`）和 `--format` / `-f`（支持 `pdf`, `excel`）选项，支持多部门、多维度的结算展现需求。
+
+### 8.5 树状嵌套目录拓扑与联动删除
+- **重构模块**: [`bf/project_manager.py`](bf/project_manager.py), [`bf/cli.py`](bf/cli.py)
+- **演进逻辑**:
+  - **树状嵌套拓扑**: 重构了项目创建逻辑，所有项目都必须在 `root` 文件夹下创建。一个项目的子项目则是直接在项目内创建，呈现 `root/proj/autoproj` 的树状嵌套结构。
+  - **递归定位与删除**: `ProjectManager` 引入了 `find_project_path` 递归定位方法，支持在 `workspace_root` 下递归寻找任何项目。删除项目时，由于物理目录是嵌套的，删除父项目会自动递归且联动地删除其所有子项目。
+  - **Windows 权限修复**: 针对 Windows 下 `.git/objects` 只读文件导致 `shutil.rmtree` 抛出 `PermissionError` 的问题，引入了 `remove_readonly` 错误处理回调，在删除失败时动态修改文件权限为可写，确保联动删除 100% 成功。

@@ -115,30 +115,27 @@ def init(
 
     if parent_names:
         for pname in parent_names:
-            proj_path = _workspace / pname
-            if not proj_path.exists() or not (proj_path / "env.yaml").exists():
+            try:
+                mgr.get_project(pname)
+            except FileNotFoundError:
                 _echo_error(f"父项目 {pname!r} 不存在")
                 raise typer.Exit(1)
 
-    # 确定项目路径
-    if parent_names:
-        # 子项目创建在父项目目录下
-        parent_path = _workspace / parent_names[0]
-        proj_path = parent_path / proj_name
-    else:
-        proj_path = _workspace / proj_name
-
-    if proj_path.exists():
+    # 检查项目是否已存在
+    if mgr.find_project_path(proj_name) is not None:
         _echo_error(f"项目 {proj_name!r} 已存在")
         raise typer.Exit(1)
 
     # 创建项目
-    base_path = _workspace / parent_names[0] if parent_names else _workspace
-    proj = mgr.create_project(proj_name, parent=parent_names[0] if parent_names else None, base_path=base_path)
-    _echo_success(f"项目 {proj_name!r} 创建成功")
-    typer.echo(f"  路径：{proj.path}")
-    if parent_names:
-        typer.echo(f"  父项目：{parent_names[0]}")
+    try:
+        proj = mgr.create_project(proj_name, parent=parent_names[0] if parent_names else None)
+        _echo_success(f"项目 {proj_name!r} 创建成功")
+        typer.echo(f"  路径：{proj.path}")
+        if parent_names:
+            typer.echo(f"  父项目：{parent_names[0]}")
+    except Exception as e:
+        _echo_error(f"创建项目失败: {e}")
+        raise typer.Exit(1)
 
 
 # ═══════════════════════════════════════════════════
@@ -285,19 +282,10 @@ def settle(
     mgr = _get_manager()
 
     # 搜索阶段项目路径
-    proj_path = _workspace / proj
-    if not proj_path.exists():
-        # 在所有项目中搜索
-        found = False
-        for pname in mgr.list_projects():
-            candidate = _workspace / pname / proj
-            if candidate.exists():
-                proj_path = candidate
-                found = True
-                break
-        if not found:
-            _echo_error(f"阶段项目 {proj!r} 不存在")
-            raise typer.Exit(1)
+    proj_path = mgr.find_project_path(proj)
+    if not proj_path:
+        _echo_error(f"阶段项目 {proj!r} 不存在")
+        raise typer.Exit(1)
 
     proj_obj = mgr.get_project(proj, base_path=proj_path.parent)
 
