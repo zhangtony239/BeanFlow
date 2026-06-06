@@ -209,3 +209,30 @@ Project (手动初始化的全局或实体项目节点)
    - 实现 `/bf export` 命令，使用 **ReportLab** 库渲染并输出 PDF 格式的财务报表。
 8. **CLI 接口重构**:
    - 重构 Typer CLI，全面对接新工作流。
+
+---
+
+## 8. 二阶段开发成果与架构演进 (Phase 2 Evolution)
+
+在二阶段开发中，我们针对 [`ROO_REVIEW.md`](ROO_REVIEW.md) 中提出的痛点进行了深度的重构与优化，取得了以下核心成果：
+
+### 8.1 强制性 Root 项目依赖校验
+- **重构模块**: [`bf/project_manager.py`](bf/project_manager.py)
+- **演进逻辑**: 在 `create_project` 方法中增加了对 `root` 项目的强制校验。除创建名为 `root` 的项目外，创建任何其他业务项目时，必须校验 `root` 项目是否已存在。如果不存在，抛出 `ValueError`。同时，强制将所有子项目的 `parent` 设为 `"root"`，彻底消除了多根并存的混乱局面，确保了全局配置、审计规则和科目映射的完整继承。
+
+### 8.2 报表导出 Provider-Exporter 模式
+- **重构模块**: [`bf/core/exporter.py`](bf/core/exporter.py)
+- **演进逻辑**: 引入了极具扩展性的 **Provider-Exporter 模式**，将报表数据的组织逻辑与渲染格式完全解耦：
+  - **`ReportData`**: 统一的报表数据模型，包含标题、表头、行数据和元数据。
+  - **`BaseReportProvider`**: 报表数据源抽象基类，派生出 `EnterpriseReportProvider`（企业标准报表）、`CashFlowReportProvider`（现金流量表）和 `TaxReportProvider`（财税报表）。
+  - **`BaseExporter`**: 报表导出器抽象基类，派生出 `PDFExporter`（使用 ReportLab 渲染为 PDF）和 `ExcelExporter`（使用 openpyxl 写入 Excel）。
+
+### 8.3 智能 Friendly Name 翻译与符号转换
+- **重构模块**: [`bf/core/exporter.py`](bf/core/exporter.py)
+- **演进逻辑**:
+  - **友好名称翻译**: 在导出报表时，遍历科目 ID，调用 `MappingDictionary.get_by_id()` 获取对应的 `MappingEntry`，并从中提取当前导出语言对应的友好名称（优先选择中文别名），彻底告别了 Beancount 原始 ID 的晦涩展现。
+  - **符号转换**: 严格遵循 `ROO_NOTE.md` 中的符号转换规则，在生成资产负债表和利润表时，自动对贷方科目（负债、权益、收入）的余额进行取反显示，确保导出的报表完全符合标准会计规范和人类阅读习惯。
+
+### 8.4 CLI 导出命令增强
+- **重构模块**: [`bf/cli.py`](bf/cli.py)
+- **演进逻辑**: 重构了 `/bf export` 命令，增加了 `--type` / `-t`（支持 `enterprise`, `cashflow`, `tax`）和 `--format` / `-f`（支持 `pdf`, `excel`）选项，支持多部门、多维度的结算展现需求。

@@ -163,10 +163,10 @@ def pay(
         bf pay Assets:Bank Assets:Inventory 50000 --reason "采购原材料" --proj root
     """
     mgr = _get_manager()
-    proj = mgr.get_project(proj)
+    proj_obj = mgr.get_project(proj)
 
     # 解析别名
-    mapping = proj.mapping
+    mapping = proj_obj.mapping
     from_id = _resolve_account(mapping, from_account)
     to_id = _resolve_account(mapping, to_account)
 
@@ -197,9 +197,9 @@ def pay(
     entry += f"\n    {from_id}  {from_beancount} CNY"
     entry += f"\n    {to_id}  {to_beancount} CNY"
 
-    proj.append_transaction(entry, reason=narration)
+    proj_obj.append_transaction(entry, reason=narration)
     _echo_success(f"记账成功：{from_account} → {to_account} {count} CNY")
-    typer.echo(f"  项目：{proj}")
+    typer.echo(f"  项目：{proj_obj}")
     typer.echo(f"  摘要：{narration}")
 
 
@@ -234,13 +234,17 @@ def _create_phase_command(phase_name: str, phase_label: str):
 
         phase_num = {"fundraising": "1", "procurement": "2", "production": "3", "sales": "4", "profit": "5"}.get(phase_name, "0")
         auto_cls = PHASE_CLASS_MAP.get(phase_name)
+        if auto_cls is None:
+            _echo_error(f"未知的阶段类型: {phase_name}")
+            raise typer.Exit(1)
 
         auto = parent.create_autoproject(f"{phase_num}_{phase_name}", auto_cls)
         _echo_success(f"{phase_label}阶段项目创建成功")
         typer.echo(f"  父项目：{proj}")
         typer.echo(f"  阶段路径：{auto.path}")
 
-    phase_cmd.__doc__ = phase_cmd.__doc__.format(phase_label=phase_label)
+    if phase_cmd.__doc__:
+        phase_cmd.__doc__ = phase_cmd.__doc__.format(phase_label=phase_label)
     return phase_cmd
 
 
@@ -295,17 +299,17 @@ def settle(
             _echo_error(f"阶段项目 {proj!r} 不存在")
             raise typer.Exit(1)
 
-    proj = mgr.get_project(proj, base_path=proj_path.parent)
+    proj_obj = mgr.get_project(proj, base_path=proj_path.parent)
 
     from .project import AutoProject
-    if not isinstance(proj, AutoProject):
+    if not isinstance(proj_obj, AutoProject):
         _echo_error(f"项目 {proj!r} 不是 AutoProject，无法结项")
         raise typer.Exit(1)
 
     if force:
         _echo_warning("强制平账模式：将自动生成待处理财产损溢冲抵分录")
 
-    success, message = proj.settle(force=force)
+    success, message = proj_obj.settle(force=force)
 
     if success:
         _echo_success(message)
@@ -459,44 +463,62 @@ def diff(
 @app.command()
 def export(
     proj_name: Annotated[str, typer.Argument(help="项目名称")],
-    output: Annotated[Optional[str], typer.Option("--output", "-o", help="输出 PDF 路径")] = None,
+    output: Annotated[Optional[str], typer.Option("--output", "-o", help="输出路径")] = None,
+    type: Annotated[str, typer.Option("--type", "-t", help="报表类型: enterprise | cashflow | tax")] = "enterprise",
+    format: Annotated[str, typer.Option("--format", "-f", help="导出格式: pdf | excel")] = "pdf",
 ) -> None:
-    """导出项目当前账务状态为 PDF 会计账簿。
+    """导出项目当前账务状态为 PDF 或 Excel 会计账簿。
 
     示例:
         bf export my_project
-        bf export my_project --output report.pdf
+        bf export my_project --type cashflow --format excel
     """
     mgr = _get_manager()
     proj = mgr.get_project(proj_name)
 
-    out_path = Path(output) if output else Path(f"{proj_name}_report.pdf")
-
-    exporter = PDFExporter(out_path)
-    exporter.add_title(f"会计账簿 - {proj_name}")
-    exporter.add_paragraph(f"项目：{proj.env.project.name}")
-    exporter.add_paragraph(f"币种：{proj.env.project.currency}")
-    exporter.add_paragraph(f"生成日期：{date.today().isoformat()}")
-
-    # 简单解析账本内容展示
-    bean_content = proj.read_bean()
-    if bean_content.strip():
-        exporter.add_heading("明细账")
-        entries = []
-        for line in bean_content.splitlines():
-            line = line.strip()
-            if line and not line.startswith((";", "*", "!", "#")):
-                entries.append({"narration": line[:80]})
-        if entries:
-            exporter.add_table(
-                ["摘要"],
-                [[e["narration"]] for e in entries[:50]]
-            )
+    # 1. 选择 Provider
+    from .core.exporter import EnterpriseReportProvider, CashFlowReportProvider, TaxReportProvider
+    if type == "enterprise":
+        provider = EnterpriseReportProvider(proj)
+    elif type == "cashflow":
+        provider = CashFlowReportProvider(proj)
+    elif type == "tax":
+        provider = TaxReportProvider(proj)
     else:
-        exporter.add_paragraph("（暂无交易记录）")
+        _echo_error(f"不支持的报表类型: {type}")
+        raise typer.Exit(1)
 
-    exporter.render()
-    _echo_success(f"PDF 报表已导出：{out_path}")
+    # 2. 获取数据
+    if type == "enterprise":
+        report_data = provider.get_detail_ledger_data()
+    elif type == "cashflow":
+        report_data = provider.get_detail_ledger_data()
+    elif type == "tax":
+        report_data = provider.get_detail_ledger_data()
+    else:
+        _echo_error(f"不支持的报表类型: {type}")
+        raise typer.Exit(1)
+
+    # 3. 选择 Exporter
+    from .core.exporter import PDFExporter, ExcelExporter
+    ext = "pdf" if format == "pdf" else "xlsx"
+    out_path = Path(output) if output else Path(f"{proj_name}_{type}_report.{ext}")
+
+    if format == "pdf":
+        exporter = PDFExporter(out_path)
+    elif format == "excel":
+        exporter = ExcelExporter(out_path)
+    else:
+        _echo_error(f"不支持的导出格式: {format}")
+        raise typer.Exit(1)
+
+    # 4. 导出
+    try:
+        exporter.export_report(report_data)
+        _echo_success(f"报表已导出：{out_path}")
+    except Exception as e:
+        _echo_error(f"导出失败: {e}")
+        raise typer.Exit(1)
 
 
 # ═══════════════════════════════════════════════════

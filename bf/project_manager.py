@@ -54,7 +54,7 @@ class ProjectManager:
         mp = self.workspace_root / "mapping_dictionary.yaml"
         if mp.exists():
             return load_mapping_dictionary(mp)
-        return MappingDictionary()
+        return MappingDictionary(reserved_embedding_model=None)
 
     def _load_global_audit(self) -> AuditConfig:
         ap = self.workspace_root / "audit.yaml"
@@ -122,6 +122,15 @@ class ProjectManager:
         """
         self._touch()
         base = base_path or self.workspace_root
+
+        # 1. 强制校验 root 项目的存在性
+        if name != "root":
+            root_path = base / "root"
+            if not root_path.exists():
+                raise ValueError("创建任何业务项目前，必须先创建并初始化 'root' 项目（总会计主体）！")
+            # 强制将 parent 设为 "root"
+            parent = "root"
+
         proj_path = base / name
         if proj_path.exists():
             raise FileExistsError(f"项目已存在: {proj_path}")
