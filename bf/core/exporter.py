@@ -100,12 +100,28 @@ class EnterpriseReportProvider(BaseReportProvider):
 
     def _get_friendly_name(self, account_id: str) -> str:
         if self.mapping:
+            # 尝试通过 ID 获取
             entry = self.mapping.get_by_id(account_id)
+            if not entry:
+                # 尝试通过别名解析
+                try:
+                    entry = self.mapping.resolve_alias(account_id)
+                except KeyError:
+                    pass
             if entry and entry.names:
                 for name in reversed(entry.names):
                     if any('\u4e00' <= char <= '\u9fff' for char in name):
                         return name
                 return entry.names[0]
+        return account_id
+
+    def _get_standard_id(self, account_id: str) -> str:
+        if self.mapping:
+            try:
+                entry = self.mapping.resolve_alias(account_id)
+                return entry.id
+            except KeyError:
+                pass
         return account_id
 
     def _parse_balances(self) -> dict[str, float]:
@@ -114,13 +130,21 @@ class EnterpriseReportProvider(BaseReportProvider):
         balances = defaultdict(Decimal)
         content = self.project.read_bean()
         for line in content.splitlines():
+            raw_line = line
             line = line.strip()
-            if not line or line.startswith((";", "*", "!", "#")):
+            if not line or line.startswith(";"):
                 continue
+            
+            # 排除交易头部
             parts = line.split()
-            if len(parts) >= 2:
-                acc = parts[0]
-                if ":" in acc:
+            if len(parts) >= 2 and parts[0].count("-") == 2 and parts[0].replace("-", "").isdigit():
+                continue
+                
+            if raw_line.startswith((" ", "\t")):
+                if len(parts) >= 2:
+                    acc = parts[0]
+                    if acc in ("open", "close", "balance", "commodity", "custom", "document", "note", "event", "query"):
+                        continue
                     for p in parts[1:]:
                         if p.replace(".", "").replace("-", "").isdigit():
                             try:
@@ -142,13 +166,14 @@ class EnterpriseReportProvider(BaseReportProvider):
 
         for acc, val in balances.items():
             friendly = self._get_friendly_name(acc)
-            if acc.lower().startswith("assets"):
+            standard_id = self._get_standard_id(acc)
+            if standard_id.lower().startswith("assets"):
                 assets.append([friendly, f"{val:.2f}"])
                 total_assets += val
-            elif acc.lower().startswith("liabilities"):
+            elif standard_id.lower().startswith("liabilities"):
                 liabilities.append([friendly, f"{-val:.2f}"])  # 贷方科目取反显示
                 total_liabilities += -val
-            elif acc.lower().startswith("equity"):
+            elif standard_id.lower().startswith("equity"):
                 equity.append([friendly, f"{-val:.2f}"])  # 贷方科目取反显示
                 total_equity += -val
 
@@ -177,10 +202,11 @@ class EnterpriseReportProvider(BaseReportProvider):
 
         for acc, val in balances.items():
             friendly = self._get_friendly_name(acc)
-            if acc.lower().startswith("income"):
+            standard_id = self._get_standard_id(acc)
+            if standard_id.lower().startswith("income"):
                 income.append([friendly, f"{-val:.2f}"])  # 贷方科目取反显示
                 total_income += -val
-            elif acc.lower().startswith("expenses") or acc.lower().startswith("fee"):
+            elif standard_id.lower().startswith("expenses") or standard_id.lower().startswith("fee"):
                 expenses.append([friendly, f"{val:.2f}"])
                 total_expenses += val
 
@@ -207,10 +233,9 @@ class EnterpriseReportProvider(BaseReportProvider):
         current_narration = ""
         
         for line in content.splitlines():
+            raw_line = line
             line = line.strip()
-            if not line:
-                continue
-            if line.startswith(";"):
+            if not line or line.startswith(";"):
                 continue
             
             parts = line.split(None, 2)
@@ -220,10 +245,12 @@ class EnterpriseReportProvider(BaseReportProvider):
                 current_narration = narr.strip('"')
                 continue
                 
-            if ":" in line:
+            if raw_line.startswith((" ", "\t")):
                 parts = line.split()
                 if len(parts) >= 2:
                     acc = parts[0]
+                    if acc in ("open", "close", "balance", "commodity", "custom", "document", "note", "event", "query"):
+                        continue
                     friendly = self._get_friendly_name(acc)
                     val_str = ""
                     for p in parts[1:]:
