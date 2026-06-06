@@ -103,8 +103,8 @@ def init(
     """创建项目，支持指定父项目实现层级嵌套。
 
     示例:
-        bf init root                          # 创建根项目
-        bf init my_project --under root       # 在 root 下创建子项目
+        bf init bf_root                       # 创建根项目
+        bf init my_project --under bf_root    # 在 bf_root 下创建子项目
     """
     mgr = _get_manager()
 
@@ -149,15 +149,15 @@ def pay(
     to_account: Annotated[str, typer.Argument(help="收款方账户（资金转入方）")],
     count: Annotated[float, typer.Argument(help="金额")],
     reason: Annotated[str, typer.Option("--reason", "-r", help="交易原因")],
-    proj: Annotated[str, typer.Option("--proj", "-p", help="目标项目名称")] = "root",
+    proj: Annotated[str, typer.Option("--proj", "-p", help="目标项目名称")] = "bf_root",
 ) -> None:
     """通用转账记账，从 from 账户转入 to 账户。
 
     语义：from_account 减少，to_account 增加（符合资金流转逻辑）
 
     示例:
-        bf pay Assets:Bank Equity:Capital 1000000 --reason "股东初始投资" --proj root
-        bf pay Assets:Bank Assets:Inventory 50000 --reason "采购原材料" --proj root
+        bf pay Assets:Bank Equity:Capital 1000000 --reason "股东初始投资" --proj bf_root
+        bf pay Assets:Bank Assets:Inventory 50000 --reason "采购原材料" --proj bf_root
     """
     mgr = _get_manager()
     proj_obj = mgr.get_project(proj)
@@ -223,7 +223,7 @@ def _create_phase_command(phase_name: str, phase_label: str):
 
     @app.command(name=phase_name)
     def phase_cmd(
-        proj: Annotated[str, typer.Option("--proj", "-p", help="父项目名称")] = "root",
+        proj: Annotated[str, typer.Option("--proj", "-p", help="父项目名称")] = "bf_root",
     ) -> None:
         """创建{phase_label}阶段 AutoProject。"""
         mgr = _get_manager()

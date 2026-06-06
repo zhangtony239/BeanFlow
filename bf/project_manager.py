@@ -95,8 +95,8 @@ class ProjectManager:
 
     def find_project_path(self, name: str) -> Optional[Path]:
         """在 workspace_root 下递归寻找项目目录。"""
-        if name == "root":
-            root_path = self.workspace_root / "root"
+        if name == "bf_root":
+            root_path = self.workspace_root / "bf_root"
             return root_path if root_path.exists() else None
 
         # 递归寻找包含 env.yaml 且目录名为 name 的目录
@@ -141,24 +141,24 @@ class ProjectManager:
         """
         self._touch()
 
-        # 1. 强制校验 root 项目的存在性
-        if name != "root":
-            root_path = self.workspace_root / "root"
+        # 1. 强制校验 bf_root 项目的存在性
+        if name != "bf_root":
+            root_path = self.workspace_root / "bf_root"
             if not root_path.exists():
-                raise ValueError("创建任何业务项目前，必须先创建并初始化 'root' 项目（总会计主体）！")
-            # 如果未指定 parent，默认设为 "root"
+                raise ValueError("创建任何业务项目前，必须先创建并初始化 'bf_root' 项目（总会计主体）！")
+            # 如果未指定 parent，默认设为 "bf_root"
             if not parent:
-                parent = "root"
+                parent = "bf_root"
 
         # 确定项目路径
-        if name == "root":
-            proj_path = self.workspace_root / "root"
+        if name == "bf_root":
+            proj_path = self.workspace_root / "bf_root"
         else:
             if base_path:
                 proj_path = Path(base_path) / name
             else:
                 if not parent:
-                    raise ValueError("非 root 项目必须指定父项目")
+                    raise ValueError("非 bf_root 项目必须指定父项目")
                 parent_path = self.find_project_path(parent)
                 if not parent_path:
                     raise ValueError(f"父项目不存在: {parent}")

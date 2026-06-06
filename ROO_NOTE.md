@@ -16,15 +16,15 @@ BeanFlow 是一个基于 Beancount 的上游封装库，旨在通过 Git 版本�
 
 ```text
 / (Workspace Root)
-└── 📁 root/                             # 企业全局环境 (Root Project)
+└── 📁 bf_root/                          # 企业全局环境 (Root Project)
     ├── .git/                            # 全局归档总账流水历史
     ├── audit.yaml                       # 审计与权限控制配置
     ├── mapping_dictionary.yaml          # 全局会计科目与别名映射字典
-    ├── root_main.bean                   # 根项目主账本
+    ├── bf_root_main.bean                # 根项目主账本
     │
-    └── 📁 Project_A/                    # 具体业务实体 (通过 bf init --under root 创建)
+    └── 📁 Project_A/                    # 具体业务实体 (通过 bf init --under bf_root 创建)
         ├── .git/                        # 项目 A 的独立凭证历史
-        ├── env.yaml                     # 继承并覆盖 Root 的配置
+        ├── env.yaml                     # 继承并覆盖 bf_root 的配置
         ├── Project_A_main.bean          # 主账本文件 (持久化账户)
         ├── .bf_todo.yaml                # 待办/异常阻断缓存
         │
@@ -170,7 +170,7 @@ Project (手动初始化的全局或实体项目节点)
 
 | 维度 | 旧版本遗产 (`old/`) | 新版本规范 (`REPO_INIT.md` & `OOP_TREE.md`) | 重构与实现要点 |
 | :--- | :--- | :--- | :--- |
-| **目录拓扑** | 扁平的 `projects/` 目录，无层级关系。 | 树状层级：Root Project -> Sub-Project -> AutoProject (阶段子项目)。 | 需要重构 `ProjectManager`，支持 `--under root` 初始化子项目，并支持嵌套的 Git 仓库管理。 |
+| **目录拓扑** | 扁平的 `projects/` 目录，无层级关系。 | 树状层级：Root Project -> Sub-Project -> AutoProject (阶段子项目)。 | 需要重构 `ProjectManager`，支持 `--under bf_root` 初始化子项目，并支持嵌套的 Git 仓库管理。 |
 | **账户模型** | 统一的 `Account` 类，通过 `AccountType.is_debit_positive()` 辅助判断借贷。 | 显式的 OOP 层次结构：`BasicAccount` -> `LeftAccount` (`AssetsAccount`, `FeeAccount`) / `RightAccount` (`DebtAccount`, `EquityAccount`)。 | 必须重构 `Account` 体系，实现完整的 OOP 派生类，并在其中封装符号转换逻辑。 |
 | **项目模型** | 扁平的 `Project` 类，无阶段派生。 | 显式的 OOP 层次结构：`Project` -> `AutoProject` -> `FundraisingProject`, `ProcurementProject`, `ProductionProject`, `SalesProject`, `ProfitProject`。 | 必须重构 `Project` 体系，实现各阶段子项目的特化逻辑与自动清算能力。 |
 | **守护进程** | 无守护进程，每次 CLI 调用都是无状态的。 | `ProjectManager` 作为有状态守护进程，听从 `DAEMON_KEEPALIVE` 内存待命时间。 | 需要实现 `ProjectManager` 守护进程，在内存中保持项目状态，减少 CLI 启动和加载开销。 |
@@ -214,7 +214,7 @@ Project (手动初始化的全局或实体项目节点)
 
 ### 8.1 强制性 Root 项目依赖校验
 - **重构模块**: [`bf/project_manager.py`](bf/project_manager.py)
-- **演进逻辑**: 在 `create_project` 方法中增加了对 `root` 项目的强制校验。除创建名为 `root` 的项目外，创建任何其他业务项目时，必须校验 `root` 项目是否已存在。如果不存在，抛出 `ValueError`。同时，强制将所有子项目的 `parent` 设为 `"root"`，彻底消除了多根并存的混乱局面，确保了全局配置、审计规则和科目映射的完整继承。
+- **演进逻辑**: 在 `create_project` 方法中增加了对 `bf_root` 项目的强制校验。除创建名为 `bf_root` 的项目外，创建任何其他业务项目时，必须校验 `bf_root` 项目是否已存在。如果不存在，抛出 `ValueError`。同时，强制将所有子项目的 `parent` 设为 `"bf_root"`，彻底消除了多根并存的混乱局面，确保了全局配置、审计规则和科目映射的完整继承。
 
 ### 8.2 报表导出 Provider-Exporter 模式
 - **重构模块**: [`bf/core/exporter.py`](bf/core/exporter.py)
@@ -236,6 +236,6 @@ Project (手动初始化的全局或实体项目节点)
 ### 8.5 树状嵌套目录拓扑与联动删除
 - **重构模块**: [`bf/project_manager.py`](bf/project_manager.py), [`bf/cli.py`](bf/cli.py)
 - **演进逻辑**:
-  - **树状嵌套拓扑**: 重构了项目创建逻辑，所有项目都必须在 `root` 文件夹下创建。一个项目的子项目则是直接在项目内创建，呈现 `root/proj/autoproj` 的树状嵌套结构。
+  - **树状嵌套拓扑**: 重构了项目创建逻辑，所有项目都必须在 `bf_root` 文件夹下创建。一个项目的子项目则是直接在项目内创建，呈现 `bf_root/proj/autoproj` 的树状嵌套结构。
   - **递归定位与删除**: `ProjectManager` 引入了 `find_project_path` 递归定位方法，支持在 `workspace_root` 下递归寻找任何项目。删除项目时，由于物理目录是嵌套的，删除父项目会自动递归且联动地删除其所有子项目。
   - **Windows 权限修复**: 针对 Windows 下 `.git/objects` 只读文件导致 `shutil.rmtree` 抛出 `PermissionError` 的问题，引入了 `remove_readonly` 错误处理回调，在删除失败时动态修改文件权限为可写，确保联动删除 100% 成功。
