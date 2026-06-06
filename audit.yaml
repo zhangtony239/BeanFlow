@@ -1,0 +1,22 @@
+version: "1.0"
+mode: solo
+allow_force_merge: false
+roles:
+  - name: admin
+    ssh_public_keys: []
+    permissions:
+      - checkoff_todo
+      - force_settle
+      - force_merge
+      - delete_project
+      - create_project
+  - name: accountant
+    ssh_public_keys: []
+    permissions:
+      - checkoff_todo
+      - create_project
+  - name: auditor
+    ssh_public_keys: []
+    permissions:
+      - checkoff_todo
+      - force_settle

@@ -1,11 +1,39 @@
 [project]
 name = "beanflow"
-version = "0.1.0"
-description = "Add your description here"
+version = "0.2.0"
+description = "BeanFlow - Beancount 业务流封装系统"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "gitpython>=3.1.0",
+    "pydantic>=2.0.0",
+    "pyyaml>=6.0.0",
     "reportlab>=4.5.1",
-    "ruamel-yaml>=0.19.1",
     "typer>=0.25.1",
 ]
+
+[project.scripts]
+bf = "bf.cli:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+]
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["bf*"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.mypy]
+python_version = "3.11"
+strict = false
