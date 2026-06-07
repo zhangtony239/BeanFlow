@@ -219,7 +219,7 @@ Project (手动初始化的全局或实体项目节点)
 ### 8.2 报表导出 Provider-Exporter 模式
 - **重构模块**: [`bf/core/exporter.py`](bf/core/exporter.py)
 - **演进逻辑**: 引入了极具扩展性的 **Provider-Exporter 模式**，将报表数据的组织逻辑与渲染格式完全解耦：
-  - **`ReportData`**: 统一的报表数据模型，包含标题、表头、行数据 and 元数据。
+  - **`ReportData`**: 统一的报表数据模型，包含标题、表头、行数据和元数据。
   - **`BaseReportProvider`**: 报表数据源抽象基类，派生出 `EnterpriseReportProvider`（企业标准报表）、`CashFlowReportProvider`（现金流量表）和 `TaxReportProvider`（财税报表）。
   - **`BaseExporter`**: 报表导出器抽象基类，派生出 `PDFExporter`（使用 ReportLab 渲染为 PDF）和 `ExcelExporter`（使用 openpyxl 写入 Excel）。
 
@@ -246,3 +246,25 @@ Project (手动初始化的全局或实体项目节点)
   - **Overlay 覆盖合并**: 在 [`MappingDictionary`](bf/core/config.py:53) 中引入了 `overlay` 方法。合并规则为：以 `id` 为唯一键，子级（如子项目本地配置）的 `MappingEntry` 覆盖或追加到父级（如全局配置）中。
   - **自上而下递归加载**: 重构了 [`Project`](bf/project.py:40) 的初始化和向上查找逻辑。系统不再采用“找到即截断”的替换模式，而是通过 `_load_overlay_mappings` 向上递归收集所有父级目录的 `mapping_dictionary.yaml`，并自上而下（从全局到父级再到本地）进行 overlay 合并。
   - **设计妙处**: 子项目只需在本地 `mapping_dictionary.yaml` 中定义需要特殊对待的科目（如临时科目 `temp: true` 或本地别名），而无需复制整张科目表，完美实现了“总默认会计用语”的继承与覆盖。
+
+---
+
+## 9. 安装与部署规范 (Installation & Deployment)
+
+为了简化开发与部署流程，BeanFlow 废弃了旧版的 `bf.bat` 和 `bf.ps1` 脚本，统一采用基于 `uv` 的现代化工具链管理方案。
+
+### 9.1 官方唯一认定安装方式
+- **安装脚本**: [`install.ps1`](install.ps1)
+- **核心命令**: `uv tool install -e .`
+- **脚本逻辑**:
+  1. 自动检测全局 `uv` 命令是否可用。
+  2. 若未检测到 `uv`，交互式引导用户自动下载并安装 `uv`（通过 `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`）。
+  3. 自动将 `uv` 路径加入当前会话的 `PATH`。
+  4. 执行 `uv tool install -e .` 将 `bf` 命令行工具以可编辑模式安装到全局环境中。
+
+### 9.2 官方唯一认定卸载方式
+- **卸载脚本**: [`uninstall.ps1`](uninstall.ps1)
+- **核心命令**: `uv tool uninstall beanflow`
+- **脚本逻辑**:
+  1. 自动检测全局 `uv` 命令是否可用。
+  2. 若可用，执行 `uv tool uninstall beanflow` 干净地卸载工具。
