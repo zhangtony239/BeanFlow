@@ -1,4 +1,4 @@
-# 检查 uv 是否已安装
+﻿# 检查 uv 是否已安装
 $uvInstalled = $false
 
 if (Get-Command uv -ErrorAction SilentlyContinue) {
