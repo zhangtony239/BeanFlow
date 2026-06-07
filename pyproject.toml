@@ -1,7 +1,7 @@
 [project]
 name = "beanflow"
 version = "0.2.0"
-description = "BeanFlow - Beancount 业务流封装系统"
+description = "BeanFlow - 面向企业会计事务的财务CLI工具"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
