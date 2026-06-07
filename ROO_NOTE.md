@@ -253,7 +253,7 @@ Project (手动初始化的全局或实体项目节点)
 
 为了简化开发与部署流程，BeanFlow 废弃了旧版的 `bf.bat` 和 `bf.ps1` 脚本，统一采用基于 `uv` 的现代化工具链管理方案。
 
-### 9.1 官方唯一认定安装方式
+### 9.1 安装
 - **安装脚本**: [`install.ps1`](install.ps1)
 - **核心命令**: `uv tool install -e .`
 - **脚本逻辑**:
@@ -262,7 +262,7 @@ Project (手动初始化的全局或实体项目节点)
   3. 自动将 `uv` 路径加入当前会话的 `PATH`。
   4. 执行 `uv tool install -e .` 将 `bf` 命令行工具以可编辑模式安装到全局环境中。
 
-### 9.2 官方唯一认定卸载方式
+### 9.2 卸载
 - **卸载脚本**: [`uninstall.ps1`](uninstall.ps1)
 - **核心命令**: `uv tool uninstall beanflow`
 - **脚本逻辑**:
