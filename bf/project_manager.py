@@ -184,6 +184,7 @@ class ProjectManager:
         from .core.git_engine import GitEngine
         engine = GitEngine(proj_path)
         engine.init(f"init: 创建项目 {name}")
+        engine.close()
 
         # 复制 mapping_dictionary（如果是根项目）
         if parent is None:

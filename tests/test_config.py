@@ -87,6 +87,44 @@ class TestMappingDictionary:
         entry = mapping.get_by_id("Unknown")
         assert entry is None
 
+    def test_mapping_dictionary_overlay(self):
+        """测试 MappingDictionary 的 overlay 覆盖合并。"""
+        parent = MappingDictionary(
+            reserved_embedding_model=None,
+            entries=[
+                MappingEntry(id="Assets:Bank", type=AccountTypeEnum.ASSETS, temp=False, names=["bank"]),
+                MappingEntry(id="Liabilities:Loans", type=AccountTypeEnum.DEBT, temp=False, names=["loans"]),
+            ]
+        )
+        child = MappingDictionary(
+            reserved_embedding_model=None,
+            entries=[
+                # 覆盖已有科目
+                MappingEntry(id="Assets:Bank", type=AccountTypeEnum.ASSETS, temp=True, names=["bank", "ali"]),
+                # 追加新科目
+                MappingEntry(id="Expenses:WIP", type=AccountTypeEnum.FEE, temp=True, names=["wip"]),
+            ]
+        )
+        
+        merged = parent.overlay(child)
+        
+        # 1. 检查覆盖的科目
+        bank_entry = merged.get_by_id("Assets:Bank")
+        assert bank_entry is not None
+        assert bank_entry.temp is True  # 覆盖成功
+        assert bank_entry.names == ["bank", "ali"]  # 覆盖成功
+        
+        # 2. 检查未被覆盖的父级科目
+        loans_entry = merged.get_by_id("Liabilities:Loans")
+        assert loans_entry is not None
+        assert loans_entry.temp is False
+        
+        # 3. 检查追加的新科目
+        wip_entry = merged.get_by_id("Expenses:WIP")
+        assert wip_entry is not None
+        assert wip_entry.temp is True
+        assert wip_entry.type == AccountTypeEnum.FEE
+
 
 class TestAuditConfig:
     """测试审计权限配置。"""

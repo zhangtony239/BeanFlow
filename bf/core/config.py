@@ -71,6 +71,33 @@ class MappingDictionary(BaseModel):
                 return entry
         return None
 
+    def overlay(self, other: Optional[MappingDictionary]) -> MappingDictionary:
+        """将另一个 MappingDictionary 覆盖合并到当前字典中，返回一个全新的合并对象。
+
+        合并规则:
+            1. 如果 id 相同，使用 other (子级) 的配置覆盖 self (父级/全局)。
+            2. 如果 id 不同，将 other 的新科目追加进来。
+        """
+        if not other:
+            return self
+
+        # 使用 dict 保持顺序并方便覆盖
+        merged_entries: Dict[str, MappingEntry] = {entry.id: entry.model_copy(deep=True) for entry in self.entries}
+
+        for other_entry in other.entries:
+            if other_entry.id in merged_entries:
+                # 覆盖已有科目（子级覆盖父级）
+                merged_entries[other_entry.id] = other_entry.model_copy(deep=True)
+            else:
+                # 追加新科目
+                merged_entries[other_entry.id] = other_entry.model_copy(deep=True)
+
+        return MappingDictionary(
+            version=other.version or self.version,
+            entries=list(merged_entries.values()),
+            reserved_embedding_model=other.reserved_embedding_model or self.reserved_embedding_model
+        )
+
 
 # ═══════════════════════════════════════════════════
 # 2. audit.yaml

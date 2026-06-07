@@ -239,3 +239,10 @@ Project (手动初始化的全局或实体项目节点)
   - **树状嵌套拓扑**: 重构了项目创建逻辑，所有项目都必须在 `bf_root` 文件夹下创建。一个项目的子项目则是直接在项目内创建，呈现 `bf_root/proj/autoproj` 的树状嵌套结构。
   - **递归定位与删除**: `ProjectManager` 引入了 `find_project_path` 递归定位方法，支持在 `workspace_root` 下递归寻找任何项目。删除项目时，由于物理目录是嵌套的，删除父项目会自动递归且联动地删除其所有子项目。
   - **Windows 权限修复**: 针对 Windows 下 `.git/objects` 只读文件导致 `shutil.rmtree` 抛出 `PermissionError` 的问题，引入了 `remove_readonly` 错误处理回调，在删除失败时动态修改文件权限为可写，确保联动删除 100% 成功。
+
+### 8.6 递归 Overlay 覆盖合并科目映射字典
+- **重构模块**: [`bf/core/config.py`](bf/core/config.py), [`bf/project.py`](bf/project.py)
+- **演进逻辑**:
+  - **Overlay 覆盖合并**: 在 [`MappingDictionary`](bf/core/config.py:53) 中引入了 `overlay` 方法。合并规则为：以 `id` 为唯一键，子级（如子项目本地配置）的 `MappingEntry` 覆盖或追加到父级（如全局配置）中。
+  - **自上而下递归加载**: 重构了 [`Project`](bf/project.py:40) 的初始化和向上查找逻辑。系统不再采用“找到即截断”的替换模式，而是通过 `_load_overlay_mappings` 向上递归收集所有父级目录的 `mapping_dictionary.yaml`，并自上而下（从全局到父级再到本地）进行 overlay 合并。
+  - **设计妙处**: 子项目只需在本地 `mapping_dictionary.yaml` 中定义需要特殊对待的科目（如临时科目 `temp: true` 或本地别名），而无需复制整张科目表，完美实现了“总默认会计用语”的继承与覆盖。

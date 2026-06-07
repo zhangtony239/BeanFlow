@@ -61,15 +61,15 @@ class Project:
         self.name = self.env.project.name
         self.parent = self.env.project.parent
 
-        # 科目映射（默认从全局加载，如果项目有自己的则覆盖）
+        # 科目映射（Overlay 覆盖合并模式）
+        base_mapping = self._load_overlay_mappings(default_base=mapping)
+        
         mapping_path = self.path / "mapping_dictionary.yaml"
         if mapping_path.exists():
-            self.mapping = load_mapping_dictionary(mapping_path)
-        elif mapping is not None:
-            self.mapping = mapping
+            local_mapping = load_mapping_dictionary(mapping_path)
+            self.mapping = base_mapping.overlay(local_mapping)
         else:
-            # 尝试从上级目录找
-            self.mapping = self._find_mapping()
+            self.mapping = base_mapping
 
         # Git 引擎
         self.engine = GitEngine(self.path)
@@ -79,18 +79,24 @@ class Project:
         if not self._bean_file.exists():
             self._bean_file.touch()
 
-    def _find_mapping(self) -> MappingDictionary:
-        """向上查找 mapping_dictionary.yaml。"""
-        current = self.path
+    def _load_overlay_mappings(self, default_base: Optional[MappingDictionary] = None) -> MappingDictionary:
+        """向上递归收集所有 mapping_dictionary.yaml，并自上而下（从全局到父级）进行 overlay 合并。"""
+        mapping_files: List[Path] = []
+        current = self.path.parent  # 从父目录开始向上找
+        
         while current != current.parent:
             candidate = current / "mapping_dictionary.yaml"
             if candidate.exists():
-                return load_mapping_dictionary(candidate)
-            candidate = current.parent / "mapping_dictionary.yaml"
-            if candidate.exists():
-                return load_mapping_dictionary(candidate)
+                mapping_files.append(candidate)
             current = current.parent
-        return MappingDictionary(reserved_embedding_model=None)
+
+        # 自上而下合并（数组反转，从最外层/全局开始合并）
+        merged = default_base or MappingDictionary(reserved_embedding_model=None)
+        for f in reversed(mapping_files):
+            parent_map = load_mapping_dictionary(f)
+            merged = merged.overlay(parent_map)
+            
+        return merged
 
     def close(self) -> None:
         """关闭项目，释放资源。"""
